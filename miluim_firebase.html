@@ -206,8 +206,8 @@ var S={
   fp:0,fsc:false,fdn:false,
   fd:{},eid:null,
 };
-var RL={admin:'מנהל',maf:'מפ',smaf:'סמפ',mm:'ממ',commander:'מטק',soldier:'חייל'};
-var RC={admin:'#ff6b35',maf:'#dc2626',smaf:'#ea580c',mm:'#7c3aed',commander:'#1d4ed8',soldier:'#059669'};
+var RL={admin:'מנהל',miflag:'מפלג',maf:'מפ',smaf:'סמפ',mm:'ממ',commander:'מטק',soldier:'חייל'};
+var RC={admin:'#ff6b35',miflag:'#be185d',maf:'#dc2626',smaf:'#ea580c',mm:'#7c3aed',commander:'#1d4ed8',soldier:'#059669'};
 
 function e(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function emp(t){return '<p style="color:#334155;text-align:center;padding:36px 0">'+t+'</p>';}
@@ -224,6 +224,10 @@ function getTabs(){
   if(r==='smaf'||r==='maf'){
     var allPend=S.reqs.filter(function(x){return x.status==='pending'}).length;
     return [{id:'reqs',ic:'📤',lb:'כל הבקשות',bg:allPend},{id:'tanks',ic:'🛡',lb:'דיווחי טנק',bg:0},{id:'tsalam',ic:'📸',lb:'דוח צלם',bg:0},{id:'achieve',ic:'🏆',lb:'השגים',bg:0},{id:'special',ic:'⭐',lb:'בקשות מיוחדות',bg:0},{id:'sched',ic:'📅',lb:'לוז אישי',bg:0}];
+  }
+  if(r==='miflag'){
+    var allPend2=S.reqs.filter(function(x){return x.status==='pending'}).length;
+    return [{id:'overview',ic:'📊',lb:'סקירה',bg:0},{id:'reqs',ic:'📤',lb:'כל הבקשות',bg:allPend2},{id:'tanks',ic:'🛡',lb:'דיווחי טנק',bg:0},{id:'tsalam',ic:'📸',lb:'דוח צלם',bg:0},{id:'achieve',ic:'🏆',lb:'השגים',bg:0},{id:'special',ic:'⭐',lb:'בקשות מיוחדות',bg:S.special.filter(function(x){return x.status==='pending'}).length},{id:'sched',ic:'📅',lb:'לוז אישי',bg:0}];
   }
   return [{id:'overview',ic:'📊',lb:'סקירה',bg:S.reqs.filter(function(x){return x.status==='pending'}).length+S.special.filter(function(x){return x.status==='pending'}).length},{id:'team',ic:'👥',lb:'ניהול צוות',bg:0},{id:'reqs',ic:'📋',lb:'כל הבקשות',bg:S.reqs.filter(function(x){return x.status==='pending'}).length},{id:'achieve',ic:'🏆',lb:'ניהול השגים',bg:0},{id:'sched',ic:'📅',lb:'ניהול לוזים',bg:0},{id:'tanks',ic:'🛡',lb:'דיווחי טנק',bg:0},{id:'tsalam',ic:'📸',lb:'דוח צלם',bg:0},{id:'special',ic:'⭐',lb:'בקשות מיוחדות',bg:S.special.filter(function(x){return x.status==='pending'}).length}];
 }
@@ -283,7 +287,7 @@ function rApp(){
   var notif=0;
   if(S.me.role==='commander')notif=cmdR().filter(function(x){return x.status==='pending'}).length;
   if(S.me.role==='mm')notif=mmR().filter(function(x){return x.status==='pending'}).length;
-  if(S.me.role==='admin')notif=S.reqs.filter(function(x){return x.status==='pending'}).length+S.special.filter(function(x){return x.status==='pending'}).length;
+  if(S.me.role==='admin'||S.me.role==='miflag')notif=S.reqs.filter(function(x){return x.status==='pending'}).length+S.special.filter(function(x){return x.status==='pending'}).length;
   return '<div style="min-height:100vh;display:flex;flex-direction:column">'+
     '<div class="topbar">'+
       '<div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">🛡️</span><span style="font-weight:700;font-size:14px">פלוגת מילואים</span></div>'+
@@ -310,8 +314,7 @@ function rContent(){
     if(r==='commander')return rReqs(cmdR(),true);
     if(r==='mm')return rReqs(mmR(),true);
     return rReqs(S.reqs,true);
-  }
-  if(t==='tanks'){return rTanks(r==='mm'?mmT():S.tanks.filter(function(x){return x.uid===S.me.id}),r==='admin'||r==='maf'||r==='smaf');}
+  }  if(t==='tanks'){return rTanks(r==='mm'?mmT():r==='miflag'||r==='admin'?S.tanks:S.tanks.filter(function(x){return x.uid===S.me.id}),r==='admin'||r==='maf'||r==='smaf'||r==='miflag');}
   if(t==='tsalam')return rTsalam();
   if(t==='achieve')return rAchieve();
   if(t==='sched')return rSched();
@@ -443,11 +446,13 @@ function rOverview(){
   var cm=S.users.filter(function(u){return u.role==='commander'});
   var mm=S.users.filter(function(u){return u.role==='mm'});
   var maf=S.users.filter(function(u){return u.role==='maf'||u.role==='smaf'});
+  var miflag=S.users.filter(function(u){return u.role==='miflag'});
   var stats=[
     {l:'חיילים',v:so.length,c:'#059669'},
     {l:'מטק',v:cm.length,c:'#1d4ed8'},
     {l:'ממ',v:mm.length,c:'#7c3aed'},
     {l:'מפ/סמפ',v:maf.length,c:'#dc2626'},
+    {l:'מפלג',v:miflag.length,c:'#be185d'},
     {l:'בקשות ממתינות',v:S.reqs.filter(function(x){return x.status==='pending'}).length,c:'#f59e0b'},
     {l:'דיווחי טנק',v:S.tanks.length,c:'#ef4444'},
   ];
@@ -463,6 +468,7 @@ function rOverview(){
 
 function rTeam(){
   var groups=[
+    {role:'miflag',lb:'מפלג',c:'#be185d'},
     {role:'maf',lb:'מפ',c:'#dc2626'},
     {role:'smaf',lb:'סמפ',c:'#ea580c'},
     {role:'mm',lb:'ממ',c:'#7c3aed'},
@@ -579,7 +585,7 @@ function rModal(){
       fld('שם משתמש','<input class="inp" id="fun" value="'+e(ef.un||'')+'"/>') +
       fld('סיסמה','<input class="inp" id="fpw" value="'+e(ef.pw||'')+'"/>') +
       fld('תפקיד','<select class="inp" id="frl" onchange="reRenderModal()"><option value="">בחר</option>'+
-        ['soldier','commander','mm','maf','smaf','admin'].map(function(o){return '<option value="'+o+'"'+(roleVal===o?' selected':'')+'>'+RL[o]+'</option>';}).join('')+
+        ['soldier','commander','mm','maf','smaf','miflag','admin'].map(function(o){return '<option value="'+o+'"'+(roleVal===o?' selected':'')+'>'+RL[o]+'</option>';}).join('')+
       '</select>') +
       fld('צוות','<select class="inp" id="ftm"><option value="">ללא</option>'+
         TEAMS.map(function(t){return '<option'+(ef.team===t?' selected':'')+'>'+t+'</option>';}).join('')+
