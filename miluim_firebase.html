@@ -127,7 +127,7 @@ function fbListen(){
     if(!snap.exists()) return;
     const d = snap.data();
     var wasMe = S.me ? S.me.id : null;
-    if(d.users){ S.users = d.users; if(wasMe) S.me = S.users.find(u=>u.id===wasMe)||S.me; }
+    if(d.users){ S.users = d.users; if(wasMe){ S.me = S.users.find(function(u){return u.id===wasMe;})||S.me; } }
     if(d.tsamItems) S.tsamItems = d.tsamItems;
     if(d.achieveTopics) S.achieveTopics = d.achieveTopics;
     if(d.shatzalTypes) S.shatzalTypes = d.shatzalTypes;
@@ -162,10 +162,11 @@ fbLoad().then(()=>{
 var S={
   page:'login',tab:'',modal:'',me:null,
   users:[
-    {id:1,un:'admin',pw:'admin123',role:'admin',name:'מנהל מערכת',cid:null,mid:null,team:null},
-    {id:8,un:'maf1',pw:'1234',role:'maf',name:'מפ אברהם',cid:null,mid:null,team:null},
-    {id:9,un:'smaf1',pw:'1234',role:'smaf',name:'סמפ גולן',cid:null,mid:null,team:null},
-    {id:2,un:'mm1',pw:'1234',role:'mm',name:'ממ כהן',cid:null,mid:null,team:'ג'},
+    {id:8,un:'miflag1',pw:'1234',role:'miflag',name:'מפלג ראשי',isAdmin:true,cid:null,mid:null,team:null},
+    {id:1,un:'admin',pw:'admin123',role:'miflag',name:'מנהל מערכת',isAdmin:true,cid:null,mid:null,team:null},
+    {id:9,un:'smaf1',pw:'1234',role:'smaf',name:'סמפ גולן',isAdmin:false,cid:null,mid:null,team:null},
+    {id:10,un:'maf1',pw:'1234',role:'maf',name:'מפ אברהם',isAdmin:false,cid:null,mid:null,team:null},
+    {id:2,un:'mm1',pw:'1234',role:'mm',name:'ממ כהן',isAdmin:false,cid:null,mid:null,team:'ג'},
     {id:3,un:'cmd1',pw:'1234',role:'commander',name:'מטק לוי',cid:null,mid:2,team:'1'},
     {id:4,un:'cmd2',pw:'1234',role:'commander',name:'מטק ברק',cid:null,mid:2,team:'2'},
     {id:5,un:'sol1',pw:'1234',role:'soldier',name:'טוראי אלון',cid:3,mid:2,team:'1א'},
@@ -206,8 +207,11 @@ var S={
   fp:0,fsc:false,fdn:false,
   fd:{},eid:null,
 };
-var RL={admin:'מנהל',maf:'מפ',smaf:'סמפ',mm:'ממ',commander:'מטק',soldier:'חייל'};
-var RC={admin:'#ff6b35',maf:'#dc2626',smaf:'#ea580c',mm:'#7c3aed',commander:'#1d4ed8',soldier:'#059669'};
+var RL={miflag:'מפלג',maf:'מפ',smaf:'סמפ',mm:'ממ',commander:'מטק',soldier:'חייל'};
+var RC={miflag:'#be185d',maf:'#dc2626',smaf:'#ea580c',mm:'#7c3aed',commander:'#1d4ed8',soldier:'#059669'};
+
+// A user is "admin" if isAdmin===true AND role is miflag/maf/smaf
+function isAdm(u){ u=u||S.me; return !!(u&&u.isAdmin&&(u.role==='miflag'||u.role==='maf'||u.role==='smaf')); }
 
 function e(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function emp(t){return '<p style="color:#334155;text-align:center;padding:36px 0">'+t+'</p>';}
@@ -218,14 +222,19 @@ function bdg(s){var m={pending:['rgba(245,158,11,0.15)','#f59e0b','ממתין'],
 // tabs config
 function getTabs(){
   var r=S.me.role,nr=myR(),cr=cmdR(),mr=mmR();
+  var adm=isAdm();
   if(r==='soldier')return [{id:'daily',ic:'📋',lb:'דרישות יומיות',bg:0},{id:'reqs',ic:'📤',lb:'בקשות יציאה',bg:nr.filter(function(x){return x.status==='pending'}).length},{id:'achieve',ic:'🏆',lb:'השגים',bg:0},{id:'sched',ic:'📅',lb:'לוז אישי',bg:0}];
   if(r==='commander')return [{id:'reqs',ic:'📤',lb:'בקשות יציאה',bg:cr.filter(function(x){return x.status==='pending'}).length},{id:'tanks',ic:'🛡',lb:'דיווחי טנק',bg:0},{id:'tsalam',ic:'📸',lb:'דוח צלם',bg:0},{id:'achieve',ic:'🏆',lb:'השגים',bg:0},{id:'sched',ic:'📅',lb:'לוז אישי',bg:0}];
   if(r==='mm')return [{id:'reqs',ic:'📤',lb:'בקשות מחלקה',bg:mr.filter(function(x){return x.status==='pending'}).length},{id:'tanks',ic:'🛡',lb:'דיווחי טנק',bg:0},{id:'tsalam',ic:'📸',lb:'דוח צלם',bg:0},{id:'achieve',ic:'🏆',lb:'השגים',bg:0},{id:'special',ic:'⭐',lb:'בקשות מיוחדות',bg:0},{id:'sched',ic:'📅',lb:'לוז אישי',bg:0}];
-  if(r==='smaf'||r==='maf'){
+  // miflag/maf/smaf — admin tabs if isAdmin, else regular tabs
+  if(r==='miflag'||r==='maf'||r==='smaf'){
     var allPend=S.reqs.filter(function(x){return x.status==='pending'}).length;
+    if(adm){
+      return [{id:'overview',ic:'📊',lb:'סקירה',bg:allPend+S.special.filter(function(x){return x.status==='pending'}).length},{id:'team',ic:'👥',lb:'ניהול צוות',bg:0},{id:'reqs',ic:'📋',lb:'כל הבקשות',bg:allPend},{id:'achieve',ic:'🏆',lb:'ניהול השגים',bg:0},{id:'sched',ic:'📅',lb:'ניהול לוזים',bg:0},{id:'tanks',ic:'🛡',lb:'דיווחי טנק',bg:0},{id:'tsalam',ic:'📸',lb:'דוח צלם',bg:0},{id:'special',ic:'⭐',lb:'בקשות מיוחדות',bg:S.special.filter(function(x){return x.status==='pending'}).length}];
+    }
     return [{id:'reqs',ic:'📤',lb:'כל הבקשות',bg:allPend},{id:'tanks',ic:'🛡',lb:'דיווחי טנק',bg:0},{id:'tsalam',ic:'📸',lb:'דוח צלם',bg:0},{id:'achieve',ic:'🏆',lb:'השגים',bg:0},{id:'special',ic:'⭐',lb:'בקשות מיוחדות',bg:0},{id:'sched',ic:'📅',lb:'לוז אישי',bg:0}];
   }
-  return [{id:'overview',ic:'📊',lb:'סקירה',bg:S.reqs.filter(function(x){return x.status==='pending'}).length+S.special.filter(function(x){return x.status==='pending'}).length},{id:'team',ic:'👥',lb:'ניהול צוות',bg:0},{id:'reqs',ic:'📋',lb:'כל הבקשות',bg:S.reqs.filter(function(x){return x.status==='pending'}).length},{id:'achieve',ic:'🏆',lb:'ניהול השגים',bg:0},{id:'sched',ic:'📅',lb:'ניהול לוזים',bg:0},{id:'tanks',ic:'🛡',lb:'דיווחי טנק',bg:0},{id:'tsalam',ic:'📸',lb:'דוח צלם',bg:0},{id:'special',ic:'⭐',lb:'בקשות מיוחדות',bg:S.special.filter(function(x){return x.status==='pending'}).length}];
+  return [{id:'overview',ic:'📊',lb:'סקירה',bg:0},{id:'reqs',ic:'📋',lb:'כל הבקשות',bg:S.reqs.filter(function(x){return x.status==='pending'}).length},{id:'achieve',ic:'🏆',lb:'ניהול השגים',bg:0},{id:'sched',ic:'📅',lb:'ניהול לוזים',bg:0},{id:'tanks',ic:'🛡',lb:'דיווחי טנק',bg:0},{id:'tsalam',ic:'📸',lb:'דוח צלם',bg:0},{id:'special',ic:'⭐',lb:'בקשות מיוחדות',bg:S.special.filter(function(x){return x.status==='pending'}).length}];
 }
 function myR(){return S.reqs.filter(function(r){return r.uid===S.me.id});}
 function cmdR(){var ids=S.users.filter(function(u){return u.cid===S.me.id}).map(function(u){return u.id});ids.push(S.me.id);return S.reqs.filter(function(r){return ids.indexOf(r.uid)>-1});}
@@ -258,7 +267,7 @@ function rLogin(){
       :rFace())+
       '<div style="margin-top:16px;padding:10px;background:rgba(255,255,255,0.02);border-radius:8px;border:1px solid rgba(255,255,255,0.04)">'+
         '<p style="color:#334155;font-size:11px;text-align:center;margin-bottom:4px">👇 משתמשי דוגמה</p>'+
-        [['admin','admin123','מנהל'],['maf1','1234','מפ'],['smaf1','1234','סמפ'],['mm1','1234','ממ'],['cmd1','1234','מטק'],['sol1','1234','חייל']].map(function(r){return '<p style="color:#475569;font-size:11px;text-align:center"><b style="color:#64748b">'+r[0]+'</b> / '+r[1]+' ('+r[2]+')</p>';}).join('')+
+        [['miflag1','1234','מפלג+מנהל'],['smaf1','1234','סמפ'],['maf1','1234','מפ'],['mm1','1234','ממ'],['cmd1','1234','מטק'],['sol1','1234','חייל']].map(function(r){return '<p style="color:#475569;font-size:11px;text-align:center"><b style="color:#64748b">'+r[0]+'</b> / '+r[1]+' ('+r[2]+')</p>';}).join('')+
       '</div>'+
     '</div>'+
   '</div>';
@@ -283,7 +292,7 @@ function rApp(){
   var notif=0;
   if(S.me.role==='commander')notif=cmdR().filter(function(x){return x.status==='pending'}).length;
   if(S.me.role==='mm')notif=mmR().filter(function(x){return x.status==='pending'}).length;
-  if(S.me.role==='admin')notif=S.reqs.filter(function(x){return x.status==='pending'}).length+S.special.filter(function(x){return x.status==='pending'}).length;
+  if(isAdm())notif=S.reqs.filter(function(x){return x.status==='pending'}).length+S.special.filter(function(x){return x.status==='pending'}).length;
   return '<div style="min-height:100vh;display:flex;flex-direction:column">'+
     '<div class="topbar">'+
       '<div style="display:flex;align-items:center;gap:8px"><span style="font-size:20px">🛡️</span><span style="font-weight:700;font-size:14px">פלוגת מילואים</span></div>'+
@@ -310,8 +319,7 @@ function rContent(){
     if(r==='commander')return rReqs(cmdR(),true);
     if(r==='mm')return rReqs(mmR(),true);
     return rReqs(S.reqs,true);
-  }
-  if(t==='tanks'){return rTanks(r==='mm'?mmT():S.tanks.filter(function(x){return x.uid===S.me.id}),r==='admin'||r==='maf'||r==='smaf');}
+  }  if(t==='tanks'){return rTanks(r==='mm'?mmT():isAdm()?S.tanks:S.tanks.filter(function(x){return x.uid===S.me.id}),isAdm()||r==='maf'||r==='smaf'||r==='miflag');}
   if(t==='tsalam')return rTsalam();
   if(t==='achieve')return rAchieve();
   if(t==='sched')return rSched();
@@ -320,7 +328,7 @@ function rContent(){
     return rSpecial(S.special,true);
   }
   if(t==='overview')return rOverview();
-  if(t==='team')return rTeam();
+  if(t==='team')return isAdm()?rTeam():emp('אין גישה לניהול צוות');
   return emp('בחר קטגוריה מהתפריט למעלה');
 }
 
@@ -409,7 +417,7 @@ function rTanks(items,isAdmin){
 }
 
 function rSched(){
-  var isAdmin=S.me.role==='admin';
+  var isAdmin=isAdm();
   var items=(isAdmin?S.scheds:S.scheds.filter(function(s){return s.uid===S.me.id})).slice().sort(function(a,b){return a.date.localeCompare(b.date)});
   return '<div>'+
     hdr('📅 '+(isAdmin?'ניהול לוזי יציאה':'הלוז האישי שלי'),isAdmin?'<button class="btn bblue" onclick="openM(\'sched\')">+ הוסף יציאה</button>':'')+
@@ -443,11 +451,13 @@ function rOverview(){
   var cm=S.users.filter(function(u){return u.role==='commander'});
   var mm=S.users.filter(function(u){return u.role==='mm'});
   var maf=S.users.filter(function(u){return u.role==='maf'||u.role==='smaf'});
+  var miflag=S.users.filter(function(u){return u.role==='miflag'});
   var stats=[
     {l:'חיילים',v:so.length,c:'#059669'},
     {l:'מטק',v:cm.length,c:'#1d4ed8'},
     {l:'ממ',v:mm.length,c:'#7c3aed'},
     {l:'מפ/סמפ',v:maf.length,c:'#dc2626'},
+    {l:'מפלג',v:miflag.length,c:'#be185d'},
     {l:'בקשות ממתינות',v:S.reqs.filter(function(x){return x.status==='pending'}).length,c:'#f59e0b'},
     {l:'דיווחי טנק',v:S.tanks.length,c:'#ef4444'},
   ];
@@ -463,6 +473,7 @@ function rOverview(){
 
 function rTeam(){
   var groups=[
+    {role:'miflag',lb:'מפלג',c:'#be185d'},
     {role:'maf',lb:'מפ',c:'#dc2626'},
     {role:'smaf',lb:'סמפ',c:'#ea580c'},
     {role:'mm',lb:'ממ',c:'#7c3aed'},
@@ -485,6 +496,7 @@ function rTeam(){
               '<div style="display:flex;gap:8px;align-items:center">'+
                 '<div class="av" style="background:'+g.c+'22;border:2px solid '+g.c+';color:'+g.c+'">'+u.name[0]+'</div>'+
                 '<div><p style="font-weight:600;font-size:13px">'+e(u.name)+'</p><p style="color:#475569;font-size:11px">@'+e(u.un)+'</p>'+
+                (u.isAdmin?'<p style="color:#be185d;font-size:10px;font-weight:700">👑 מנהל מערכת</p>':'')+
                 (u.prof?'<p style="color:#0891b2;font-size:10px;font-weight:600">⚙ '+e(u.prof)+'</p>':'')+
                 (u.team?'<p style="color:#7c3aed;font-size:10px;font-weight:600">צוות '+e(u.team)+'</p>':'')+
                 (u.role==='mm'&&u.cids&&u.cids.length?'<p style="color:#334155;font-size:10px">מטקים: '+u.cids.map(function(id){var c=S.users.find(function(x){return x.id===id;});return c?e(c.name):'?';}).join(', ')+'</p>':'')+
@@ -579,15 +591,25 @@ function rModal(){
       fld('שם משתמש','<input class="inp" id="fun" value="'+e(ef.un||'')+'"/>') +
       fld('סיסמה','<input class="inp" id="fpw" value="'+e(ef.pw||'')+'"/>') +
       fld('תפקיד','<select class="inp" id="frl" onchange="reRenderModal()"><option value="">בחר</option>'+
-        ['soldier','commander','mm','maf','smaf','admin'].map(function(o){return '<option value="'+o+'"'+(roleVal===o?' selected':'')+'>'+RL[o]+'</option>';}).join('')+
+        ['soldier','commander','mm','maf','smaf','miflag'].map(function(o){return '<option value="'+o+'"'+(roleVal===o?' selected':'')+'>'+RL[o]+'</option>';}).join('')+
       '</select>') +
       fld('צוות','<select class="inp" id="ftm"><option value="">ללא</option>'+
         TEAMS.map(function(t){return '<option'+(ef.team===t?' selected':'')+'>'+t+'</option>';}).join('')+
       '</select>') +
-      (roleVal!=='admin'?
-        fld('מקצוע','<select class="inp" id="fprof"><option value="">ללא</option>'+
-          ['מפקד','תותחן','טען','נהג'].map(function(p){return '<option'+(ef.prof===p?' selected':'')+'>'+p+'</option>';}).join('')+
-        '</select>') : '') +
+      fld('מקצוע','<select class="inp" id="fprof"><option value="">ללא</option>'+
+        ['מפקד','תותחן','טען','נהג'].map(function(p){return '<option'+(ef.prof===p?' selected':'')+'>'+p+'</option>';}).join('')+
+      '</select>') +
+      (roleVal==='miflag'||roleVal==='maf'||roleVal==='smaf'?
+        '<div class="fld"><label>הרשאות מנהל</label>'+
+          '<div onclick="this.querySelector(\'input\').click()" style="display:flex;align-items:center;gap:10px;background:rgba(190,24,93,0.08);border:1px solid rgba(190,24,93,0.2);border-radius:10px;padding:12px;cursor:pointer">'+
+            '<input type="checkbox" id="fisadmin" '+(ef.isAdmin?'checked':'')+' style="width:18px;height:18px;accent-color:#be185d;flex-shrink:0"/>'+
+            '<div>'+
+              '<p style="font-size:13px;font-weight:600;color:#f9a8d4">גישת מנהל מערכת</p>'+
+              '<p style="font-size:11px;color:#64748b">ניהול צוות, אישור בקשות, צפייה בכל הנתונים</p>'+
+            '</div>'+
+          '</div>'+
+        '</div>'
+      :'')+
       (roleVal==='mm' ?
         '<div class="fld"><label>מטק (עד 2)</label>'+multiSel('fci',cm,ef.cids,2)+'</div>'
       : roleVal==='commander'||roleVal==='maf'||roleVal==='smaf' ?
@@ -646,7 +668,7 @@ function rModal(){
 }
 
 function rAchieve(){
-  var isAdmin=S.me.role==='admin';
+  var isAdmin=isAdm();
 
   if(isAdmin){
     var nonAdmins=S.users.filter(function(u){return u.role!=='admin';});
@@ -772,7 +794,7 @@ function rAchieve(){
 }
 
 function rTsalam(){
-  var isAdmin=S.me.role==='admin';
+  var isAdmin=isAdm();
   var cats={};
   S.tsamItems.forEach(function(it){if(!cats[it.cat])cats[it.cat]=[];cats[it.cat].push(it);});
   var catNames=Object.keys(cats);
@@ -1027,7 +1049,8 @@ function reRenderModal(){
 function svUser(mode){
   var role=gv('frl')||'soldier';
   var team=gv('ftm')||null;
-  var updates={name:gv('fn'),un:gv('fun'),pw:gv('fpw'),role:role,team:team,prof:gv('fprof')||null,cid:null,mid:null,cids:null,solids:null};
+  var isAdminVal=(role==='miflag'||role==='maf'||role==='smaf')?!!(document.getElementById('fisadmin')&&document.getElementById('fisadmin').checked):false;
+  var updates={name:gv('fn'),un:gv('fun'),pw:gv('fpw'),role:role,team:team,prof:gv('fprof')||null,isAdmin:isAdminVal,cid:null,mid:null,cids:null,solids:null};
   if(role==='mm'){
     updates.cids=[parseInt(gv('fci0'))||null,parseInt(gv('fci1'))||null].filter(Boolean);
   } else if(role==='commander'||role==='maf'||role==='smaf'){
