@@ -163,6 +163,7 @@ var S={
   page:'login',tab:'',modal:'',me:null,
   users:[
     {id:1,un:'admin',pw:'admin123',role:'miflag',name:'מנהל מערכת',isAdmin:true,cid:null,mid:null,team:null},
+    {id:11,un:'miflag1',pw:'1234',role:'miflag',name:'מפלג דוגמא',isAdmin:true,cid:null,mid:null,team:null},
     {id:9,un:'smaf1',pw:'1234',role:'smaf',name:'סמפ גולן',isAdmin:false,cid:null,mid:null,team:null},
     {id:10,un:'maf1',pw:'1234',role:'maf',name:'מפ אברהם',isAdmin:false,cid:null,mid:null,team:null},
     {id:2,un:'mm1',pw:'1234',role:'mm',name:'ממ כהן',isAdmin:false,cid:null,mid:null,team:'ג'},
@@ -229,18 +230,53 @@ function bdg(s){var m={pending:['rgba(245,158,11,0.15)','#f59e0b','ממתין'],
 function getTabs(){
   var r=S.me.role,nr=myR(),cr=cmdR(),mr=mmR();
   var adm=isAdm()||isSysAdmin();
-  if(r==='soldier')return [{id:'daily',ic:'📋',lb:'דרישות יומיות',bg:0},{id:'reqs',ic:'📤',lb:'בקשות יציאה',bg:nr.filter(function(x){return x.status==='pending'}).length},{id:'achieve',ic:'🏆',lb:'השגים',bg:0},{id:'sched',ic:'📅',lb:'לוז אישי',bg:0}];
-  if(r==='commander')return [{id:'reqs',ic:'📤',lb:'בקשות יציאה',bg:cr.filter(function(x){return x.status==='pending'}).length},{id:'tanks',ic:'🛡',lb:'דיווחי טנק',bg:0},{id:'tsalam',ic:'📸',lb:'דוח צלם',bg:0},{id:'achieve',ic:'🏆',lb:'השגים',bg:0},{id:'sched',ic:'📅',lb:'לוז אישי',bg:0}];
-  if(r==='mm')return [{id:'reqs',ic:'📤',lb:'בקשות מחלקה',bg:mr.filter(function(x){return x.status==='pending'}).length},{id:'tanks',ic:'🛡',lb:'דיווחי טנק',bg:0},{id:'tsalam',ic:'📸',lb:'דוח צלם',bg:0},{id:'achieve',ic:'🏆',lb:'השגים',bg:0},{id:'special',ic:'⭐',lb:'בקשות מיוחדות',bg:0},{id:'sched',ic:'📅',lb:'לוז אישי',bg:0}];
-  // miflag/maf/smaf — admin tabs if isAdmin, else regular tabs
-  if(r==='miflag'||r==='maf'||r==='smaf'){
-    var allPend=S.reqs.filter(function(x){return x.status==='pending'}).length;
-    if(adm){
-      return [{id:'overview',ic:'📊',lb:'סקירה',bg:allPend+S.special.filter(function(x){return x.status==='pending'}).length},{id:'team',ic:'👥',lb:'שבצק פלוגה',bg:0},{id:'reqs',ic:'📋',lb:'כל הבקשות',bg:allPend},{id:'achieve',ic:'🏆',lb:'ניהול השגים',bg:0},{id:'sched',ic:'📅',lb:'ניהול לוזים',bg:0},{id:'tanks',ic:'🛡',lb:'דיווחי טנק',bg:0},{id:'tsalam',ic:'📸',lb:'דוח צלם',bg:0},{id:'special',ic:'⭐',lb:'בקשות מיוחדות',bg:S.special.filter(function(x){return x.status==='pending'}).length}];
-    }
-    return [{id:'reqs',ic:'📤',lb:'כל הבקשות',bg:allPend},{id:'tanks',ic:'🛡',lb:'דיווחי טנק',bg:0},{id:'tsalam',ic:'📸',lb:'דוח צלם',bg:0},{id:'achieve',ic:'🏆',lb:'השגים',bg:0},{id:'special',ic:'⭐',lb:'בקשות מיוחדות',bg:0},{id:'sched',ic:'📅',lb:'לוז אישי',bg:0}];
-  }
-  return [{id:'overview',ic:'📊',lb:'סקירה',bg:0},{id:'reqs',ic:'📋',lb:'כל הבקשות',bg:S.reqs.filter(function(x){return x.status==='pending'}).length},{id:'achieve',ic:'🏆',lb:'ניהול השגים',bg:0},{id:'sched',ic:'📅',lb:'ניהול לוזים',bg:0},{id:'tanks',ic:'🛡',lb:'דיווחי טנק',bg:0},{id:'tsalam',ic:'📸',lb:'דוח צלם',bg:0},{id:'special',ic:'⭐',lb:'בקשות מיוחדות',bg:S.special.filter(function(x){return x.status==='pending'}).length}];
+  var allPend=S.reqs.filter(function(x){return x.status==='pending'}).length;
+  var specPend=S.special.filter(function(x){return x.status==='pending'}).length;
+
+  // Full admin tabs — for any user with admin flag OR the system admin account
+  var adminTabs=[
+    {id:'overview',ic:'📊',lb:'סקירה',bg:allPend+specPend},
+    {id:'team',ic:'👥',lb:'שבצק פלוגה',bg:0},
+    {id:'reqs',ic:'📋',lb:'כל הבקשות',bg:allPend},
+    {id:'achieve',ic:'🏆',lb:'ניהול השגים',bg:0},
+    {id:'sched',ic:'📅',lb:'ניהול לוזים',bg:0},
+    {id:'tanks',ic:'🛡',lb:'דיווחי טנק',bg:0},
+    {id:'tsalam',ic:'📸',lb:'דוח צלם',bg:0},
+    {id:'special',ic:'⭐',lb:'בקשות מיוחדות',bg:specPend},
+  ];
+
+  if(adm) return adminTabs;
+
+  if(r==='soldier') return [
+    {id:'daily',ic:'📋',lb:'דרישות יומיות',bg:0},
+    {id:'reqs',ic:'📤',lb:'בקשות יציאה',bg:nr.filter(function(x){return x.status==='pending'}).length},
+    {id:'achieve',ic:'🏆',lb:'השגים',bg:0},
+    {id:'sched',ic:'📅',lb:'לוז אישי',bg:0},
+  ];
+  if(r==='commander') return [
+    {id:'reqs',ic:'📤',lb:'בקשות יציאה',bg:cr.filter(function(x){return x.status==='pending'}).length},
+    {id:'tanks',ic:'🛡',lb:'דיווחי טנק',bg:0},
+    {id:'tsalam',ic:'📸',lb:'דוח צלם',bg:0},
+    {id:'achieve',ic:'🏆',lb:'השגים',bg:0},
+    {id:'sched',ic:'📅',lb:'לוז אישי',bg:0},
+  ];
+  if(r==='mm') return [
+    {id:'reqs',ic:'📤',lb:'בקשות מחלקה',bg:mr.filter(function(x){return x.status==='pending'}).length},
+    {id:'tanks',ic:'🛡',lb:'דיווחי טנק',bg:0},
+    {id:'tsalam',ic:'📸',lb:'דוח צלם',bg:0},
+    {id:'achieve',ic:'🏆',lb:'השגים',bg:0},
+    {id:'special',ic:'⭐',lb:'בקשות מיוחדות',bg:0},
+    {id:'sched',ic:'📅',lb:'לוז אישי',bg:0},
+  ];
+  // miflag/maf/smaf without admin — regular senior tabs
+  return [
+    {id:'reqs',ic:'📤',lb:'כל הבקשות',bg:allPend},
+    {id:'tanks',ic:'🛡',lb:'דיווחי טנק',bg:0},
+    {id:'tsalam',ic:'📸',lb:'דוח צלם',bg:0},
+    {id:'achieve',ic:'🏆',lb:'השגים',bg:0},
+    {id:'special',ic:'⭐',lb:'בקשות מיוחדות',bg:specPend},
+    {id:'sched',ic:'📅',lb:'לוז אישי',bg:0},
+  ];
 }
 function myR(){return S.reqs.filter(function(r){return r.uid===S.me.id});}
 function cmdR(){var ids=S.users.filter(function(u){return u.cid===S.me.id}).map(function(u){return u.id});ids.push(S.me.id);return S.reqs.filter(function(r){return ids.indexOf(r.uid)>-1});}
@@ -273,7 +309,7 @@ function rLogin(){
       :rFace())+
       '<div style="margin-top:16px;padding:10px;background:rgba(255,255,255,0.02);border-radius:8px;border:1px solid rgba(255,255,255,0.04)">'+
         '<p style="color:#334155;font-size:11px;text-align:center;margin-bottom:4px">👇 משתמשי דוגמה</p>'+
-        [['miflag1','1234','מפלג+מנהל'],['smaf1','1234','סמפ'],['maf1','1234','מפ'],['mm1','1234','ממ'],['cmd1','1234','מטק'],['sol1','1234','חייל']].map(function(r){return '<p style="color:#475569;font-size:11px;text-align:center"><b style="color:#64748b">'+r[0]+'</b> / '+r[1]+' ('+r[2]+')</p>';}).join('')+
+        [['admin','admin123','מנהל+מפלג'],['miflag1','1234','מפלג+מנהל'],['smaf1','1234','סמפ'],['maf1','1234','מפ'],['mm1','1234','ממ'],['cmd1','1234','מטק'],['sol1','1234','חייל']].map(function(r){return '<p style="color:#475569;font-size:11px;text-align:center"><b style="color:#64748b">'+r[0]+'</b> / '+r[1]+' ('+r[2]+')</p>';}).join('')+
       '</div>'+
     '</div>'+
   '</div>';
