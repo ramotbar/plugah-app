@@ -408,7 +408,7 @@ function rDaily(){
 
 function rReqs(items,ca){
   var r=S.me.role;
-  var bc=r==='mm'?'bpurple':r==='admin'?'borange':'bblue';
+  var bc=r==='mm'?'bpurple':(isAdm()||isSysAdmin())?'borange':'bblue';
   var bl=r==='soldier'?'+ בקשה חדשה':'+ בקשה שלי';
   return '<div>'+
     hdr('📤 בקשות יציאה','<button class="btn '+bc+'" onclick="openM(\'req\')">'+bl+'</button>')+
@@ -426,10 +426,16 @@ function rReqs(items,ca){
         '</div>'+
         '<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0;margin-right:8px">'+
           bdg(q.status)+
-          (ca&&q.status==='pending'&&q.uid!==S.me.id?
-            '<div style="display:flex;gap:4px">'+
-              '<button class="bsm" style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#22c55e" onclick="apR('+q.id+')">✓ אשר</button>'+
-              '<button class="bsm" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#ef4444" onclick="rejR('+q.id+')">✕ דחה</button>'+
+          (ca&&q.uid!==S.me.id?
+            '<div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">'+
+              (q.status==='pending'?
+                '<button class="bsm" style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#22c55e" onclick="apR('+q.id+')">✓ אשר</button>'+
+                '<button class="bsm" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#ef4444" onclick="rejR('+q.id+')">✕ דחה</button>'
+              : q.status==='approved'?
+                '<button class="bsm" style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);color:#f59e0b" onclick="unapR('+q.id+')">↩ לא מאושר</button>'
+              : q.status==='rejected'?
+                '<button class="bsm" style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#22c55e" onclick="apR('+q.id+')">✓ אשר</button>'
+              :'')+
             '</div>':'')+
         '</div>'+
       '</div></div>';
@@ -505,7 +511,16 @@ function rSpecial(items,ca){
         '<div><p style="font-weight:600;margin-bottom:3px">'+e(r.uname)+' — '+e(r.subj)+'</p><p style="color:#94a3b8;font-size:13px;margin-bottom:4px">'+e(r.content)+'</p>'+(r.prio?'<span style="background:rgba(255,107,53,0.15);color:#ff6b35;font-size:11px;padding:2px 8px;border-radius:8px">'+e(r.prio)+'</span>':'')+'</div>'+
         '<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">'+
           bdg(r.status)+
-          (ca&&r.status==='pending'?'<div style="display:flex;gap:4px"><button class="bsm" style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#22c55e" onclick="apS('+r.id+')">✓ אשר</button><button class="bsm" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#ef4444" onclick="rejS('+r.id+')">✕ דחה</button></div>':'')+
+          (ca?'<div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">'+
+            (r.status==='pending'?
+              '<button class="bsm" style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#22c55e" onclick="apS('+r.id+')">✓ אשר</button>'+
+              '<button class="bsm" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#ef4444" onclick="rejS('+r.id+')">✕ דחה</button>'
+            : r.status==='approved'?
+              '<button class="bsm" style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);color:#f59e0b" onclick="unapS('+r.id+')">↩ לא מאושר</button>'
+            : r.status==='rejected'?
+              '<button class="bsm" style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#22c55e" onclick="apS('+r.id+')">✓ אשר</button>'
+            :'')+
+          '</div>':'')+
         '</div>'+
       '</div></div>';
     }).join(''):emp('אין בקשות מיוחדות'))+
@@ -1054,8 +1069,10 @@ function openM(m){S.modal=m;render();}
 function closeM(){S.modal='';S._modalOverride=null;S._tankTypeOverride=null;S._tankNumOverride=null;render();}
 function apR(id){S.reqs=S.reqs.map(function(r){return r.id===id?Object.assign({},r,{status:'approved'}):r});if(window.fbSaveData)fbSaveData();render();}
 function rejR(id){S.reqs=S.reqs.map(function(r){return r.id===id?Object.assign({},r,{status:'rejected'}):r});if(window.fbSaveData)fbSaveData();render();}
+function unapR(id){S.reqs=S.reqs.map(function(r){return r.id===id?Object.assign({},r,{status:'pending'}):r});if(window.fbSaveData)fbSaveData();render();}
 function apS(id){S.special=S.special.map(function(r){return r.id===id?Object.assign({},r,{status:'approved'}):r});if(window.fbSaveData)fbSaveData();render();}
 function rejS(id){S.special=S.special.map(function(r){return r.id===id?Object.assign({},r,{status:'rejected'}):r});if(window.fbSaveData)fbSaveData();render();}
+function unapS(id){S.special=S.special.map(function(r){return r.id===id?Object.assign({},r,{status:'pending'}):r});if(window.fbSaveData)fbSaveData();render();}
 function editU(id){S.eid=id;S.modal='edituser';render();}
 function delU(id){if(confirm('למחוק משתמש?')){S.users=S.users.filter(function(u){return u.id!==id});if(window.fbSaveConfig)fbSaveConfig();render();}}
 
