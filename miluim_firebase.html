@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="פלוגה">
 <link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <script>
 // Register service worker for offline support
 if('serviceWorker' in navigator){
@@ -70,16 +71,29 @@ const db = getFirestore(app);
 
 async function fbLoad(){
   try {
-    // Load config (users, tsamItems, achieveTopics, shatzalTypes)
     const cfgSnap = await getDoc(doc(db,'app','config'));
     if(cfgSnap.exists()){
       const d = cfgSnap.data();
-      if(d.users) S.users = d.users;
+      if(d.users && d.users.length > 0){
+        S.users = d.users;
+        // Fix legacy users: ensure admin always has isAdmin:true and role miflag
+        S.users = S.users.map(function(u){
+          if(u.un==='admin') return Object.assign({},u,{isAdmin:true, role: u.role==='admin'?'miflag':u.role});
+          if(u.un==='miflag1') return Object.assign({},u,{isAdmin:true, role:'miflag'});
+          return u;
+        });
+        // Add miflag1 if missing
+        if(!S.users.find(function(u){return u.un==='miflag1';})){
+          S.users.push({id:11,un:'miflag1',pw:'1234',role:'miflag',name:'מפלג דוגמא',isAdmin:true,cid:null,mid:null,team:null});
+        }
+      }
       if(d.tsamItems) S.tsamItems = d.tsamItems;
       if(d.achieveTopics) S.achieveTopics = d.achieveTopics;
       if(d.shatzalTypes) S.shatzalTypes = d.shatzalTypes;
+    } else {
+      // First time — save defaults to Firebase
+      await fbSaveConfig();
     }
-    // Load dynamic data
     const dataSnap = await getDoc(doc(db,'app','data'));
     if(dataSnap.exists()){
       const d = dataSnap.data();
@@ -127,7 +141,20 @@ function fbListen(){
     if(!snap.exists()) return;
     const d = snap.data();
     var wasMe = S.me ? S.me.id : null;
-    if(d.users){ S.users = d.users; if(wasMe){ S.me = S.users.find(function(u){return u.id===wasMe;})||S.me; } }
+    if(d.users && d.users.length > 0){
+      S.users = d.users.map(function(u){
+        if(u.un==='admin') return Object.assign({},u,{isAdmin:true, role: u.role==='admin'?'miflag':u.role});
+        if(u.un==='miflag1') return Object.assign({},u,{isAdmin:true, role:'miflag'});
+        return u;
+      });
+      if(!S.users.find(function(u){return u.un==='miflag1';})){
+        S.users.push({id:11,un:'miflag1',pw:'1234',role:'miflag',name:'מפלג דוגמא',isAdmin:true,cid:null,mid:null,team:null});
+      }
+      if(wasMe){
+        var fresh = S.users.find(function(u){return u.id===wasMe;});
+        if(fresh) S.me = fresh;
+      }
+    }
     if(d.tsamItems) S.tsamItems = d.tsamItems;
     if(d.achieveTopics) S.achieveTopics = d.achieveTopics;
     if(d.shatzalTypes) S.shatzalTypes = d.shatzalTypes;
