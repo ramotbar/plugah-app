@@ -43,6 +43,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid rgba(29,78,216,0.6)}
 .grid2{display:flex;gap:10px}
 .grid2 .fld{flex:1}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 <div id="root"><div style="min-height:100vh;background:#0a0f1e;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px"><div style="width:50px;height:50px;border:3px solid rgba(29,78,216,0.3);border-top-color:#1d4ed8;border-radius:50%;animation:spin 0.8s linear infinite"></div><p style="color:#64748b;font-size:14px">מתחבר למערכת...</p></div></div>
@@ -334,10 +335,6 @@ function rLogin(){
         (S.lerr?'<p style="color:#ef4444;font-size:13px;margin-bottom:8px">'+S.lerr+'</p>':'')+
         '<button class="btn bblue" style="width:100%;margin-top:4px" onclick="doLogin()">כניסה</button>'
       :rFace())+
-      '<div style="margin-top:16px;padding:10px;background:rgba(255,255,255,0.02);border-radius:8px;border:1px solid rgba(255,255,255,0.04)">'+
-        '<p style="color:#334155;font-size:11px;text-align:center;margin-bottom:4px">👇 משתמשי דוגמה</p>'+
-        [['admin','admin123','מנהל+מפלג'],['miflag1','1234','מפלג+מנהל'],['smaf1','1234','סמפ'],['maf1','1234','מפ'],['mm1','1234','ממ'],['cmd1','1234','מטק'],['sol1','1234','חייל']].map(function(r){return '<p style="color:#475569;font-size:11px;text-align:center"><b style="color:#64748b">'+r[0]+'</b> / '+r[1]+' ('+r[2]+')</p>';}).join('')+
-      '</div>'+
     '</div>'+
   '</div>';
 }
@@ -552,7 +549,11 @@ function rTeam(){
   var cm=S.users.filter(function(u){return u.role==='commander'});
   var mm=S.users.filter(function(u){return u.role==='mm'});
   return '<div>'+
-    hdr('👥 שבצק פלוגה','<button class="btn borange" onclick="openM(\'adduser\')">+ הוסף משתמש</button>')+
+    hdr('👥 שבצק פלוגה','<div style="display:flex;gap:8px">'+
+      '<button class="btn" style="background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.3);color:#22c55e" onclick="document.getElementById(\'importXlsx\').click()">📥 ייבוא מאקסל</button>'+
+      '<input type="file" id="importXlsx" accept=".xlsx" style="display:none" onchange="importUsersFromXlsx(this)"/>'+
+      '<button class="btn borange" onclick="openM(\'adduser\')">+ הוסף משתמש</button>'+
+    '</div>')+
     groups.map(function(g){
       var list=S.users.filter(function(u){return u.role===g.role});
       return '<div style="margin-bottom:20px">'+
@@ -684,8 +685,10 @@ function rModal(){
       : roleVal==='commander'||roleVal==='maf'||roleVal==='smaf' ?
         '<div class="fld"><label>חיילים (עד 4)</label>'+multiSel('fsol',soldiers,ef.solids,4)+'</div>'
       : roleVal==='soldier' ?
-        fld('מטק',selOpt('fci',cm,ef.cid)) +
-        fld('ממ',selOpt('fmi',mm,ef.mid))
+        fld('מפקד אישי',selOpt('fci',cm,ef.cid)) +
+        fld('ממ',selOpt('fmi',mm,ef.mid)) +
+        fld('מפ',selOpt('fmaf',S.users.filter(function(u){return u.role==='maf';}),ef.mafid)) +
+        fld('סמפ',selOpt('fsmaf',S.users.filter(function(u){return u.role==='smaf';}),ef.smafid))
       : '') +
       '<button class="btn borange" style="width:100%;margin-top:14px" onclick="svUser(\''+m+'\')">'+(m==='edituser'?'שמור שינויים':'הוסף משתמש')+'</button>';
   }else if(m==='tsalam'){
@@ -1115,6 +1118,62 @@ function reRenderModal(){
   S._modalOverride=override;
   render();
 }
+function importUsersFromXlsx(input){
+  var file=input.files[0];
+  if(!file) return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var data=new Uint8Array(e.target.result);
+      var wb=XLSX.read(data,{type:'array'});
+      var ws=wb.Sheets[wb.SheetNames[0]];
+      var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      // Find header row (row index 2 = row 3 in excel)
+      var dataRows=rows.slice(3); // skip title, subtitle, headers
+      var added=0,skipped=0,errors=[];
+      dataRows.forEach(function(row,idx){
+        var name=String(row[0]||'').trim();
+        var un=String(row[1]||'').trim();
+        var pw=String(row[2]||'').trim();
+        var role=String(row[3]||'').trim().toLowerCase();
+        var team=String(row[4]||'').trim()||null;
+        var prof=String(row[5]||'').trim()||null;
+        var cmdName=String(row[6]||'').trim();
+        var mmName=String(row[7]||'').trim();
+        var mafName=String(row[8]||'').trim();
+        var smafName=String(row[9]||'').trim();
+        if(!name&&!un) return; // empty row
+        if(!name||!un||!pw||!role){errors.push('שורה '+(idx+5)+': חסרים שדות חובה');return;}
+        if(S.users.find(function(u){return u.un===un;})){skipped++;return;}
+        var validRoles=['soldier','commander','mm','maf','smaf','miflag'];
+        if(validRoles.indexOf(role)<0){errors.push('שורה '+(idx+5)+': תפקיד לא תקין "'+role+'"');return;}
+        var newUser={
+          id:Date.now()+Math.random(),
+          un:un,pw:pw,role:role,name:name,
+          team:team,prof:prof,isAdmin:false,
+          cid:null,mid:null,mafid:null,smafid:null,cids:null,solids:null
+        };
+        // Resolve commander name → id
+        if(cmdName){var c=S.users.find(function(u){return u.name===cmdName;});if(c)newUser.cid=c.id;}
+        if(mmName){var m=S.users.find(function(u){return u.name===mmName;});if(m)newUser.mid=m.id;}
+        if(mafName){var mf=S.users.find(function(u){return u.name===mafName;});if(mf)newUser.mafid=mf.id;}
+        if(smafName){var sm=S.users.find(function(u){return u.name===smafName;});if(sm)newUser.smafid=sm.id;}
+        S.users.push(newUser);
+        added++;
+      });
+      if(window.fbSaveConfig)fbSaveConfig();
+      input.value='';
+      var msg='✅ יובאו '+added+' משתמשים';
+      if(skipped>0)msg+='\n⚠ דולגו '+skipped+' (שם משתמש כבר קיים)';
+      if(errors.length>0)msg+='\n\n❌ שגיאות:\n'+errors.join('\n');
+      alert(msg);
+      render();
+    }catch(err){
+      alert('שגיאה בקריאת הקובץ: '+err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
 function svUser(mode){
   var role=gv('frl')||'soldier';
   var team=gv('ftm')||null;
@@ -1127,6 +1186,8 @@ function svUser(mode){
   } else if(role==='soldier'){
     updates.cid=parseInt(gv('fci'))||null;
     updates.mid=parseInt(gv('fmi'))||null;
+    updates.mafid=parseInt(gv('fmaf'))||null;
+    updates.smafid=parseInt(gv('fsmaf'))||null;
   }
   if(mode==='edituser'){
     S.users=S.users.map(function(u){return u.id===S.eid?Object.assign({},u,updates):u;});
