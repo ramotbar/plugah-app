@@ -265,7 +265,7 @@ function e(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').re
 function emp(t){return '<p style="color:#334155;text-align:center;padding:36px 0">'+t+'</p>';}
 function fld(l,h){return '<div class="fld"><label>'+l+'</label>'+h+'</div>';}
 function gv(id){var el=document.getElementById(id);return el?el.value:'';}
-function bdg(s){var m={pending:['rgba(245,158,11,0.15)','#f59e0b','ממתין'],approved:['rgba(34,197,94,0.15)','#22c55e','אושר'],rejected:['rgba(239,68,68,0.15)','#ef4444','נדחה']};var x=m[s]||m.pending;return '<span style="background:'+x[0]+';color:'+x[1]+';padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">'+x[2]+'</span>';}
+function bdg(s){var m={pending_cmd:['rgba(100,116,139,0.15)','#94a3b8','ממתין לאישור מפקד'],pending:['rgba(245,158,11,0.15)','#f59e0b','ממתין לאישור ממ'],pending_mm:['rgba(251,146,60,0.15)','#fb923c','ממתין לאישור מנהל'],approved:['rgba(34,197,94,0.15)','#22c55e','אושר'],rejected:['rgba(239,68,68,0.15)','#ef4444','נדחה']};var x=m[s]||m.pending_cmd;return '<span style="background:'+x[0]+';color:'+x[1]+';padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600">'+x[2]+'</span>';}
 
 // tabs config
 function getTabs(){
@@ -291,11 +291,13 @@ function getTabs(){
   if(r==='soldier') return [
     {id:'daily',ic:'📋',lb:'דרישות יומיות',bg:0},
     {id:'reqs',ic:'📤',lb:'בקשות יציאה',bg:nr.filter(function(x){return x.status==='pending'}).length},
+    {id:'special',ic:'⭐',lb:'בקשות מיוחדות',bg:0},
     {id:'achieve',ic:'🏆',lb:'השגים',bg:0},
     {id:'sched',ic:'📅',lb:'לוז אישי',bg:0},
   ];
   if(r==='commander') return [
-    {id:'reqs',ic:'📤',lb:'בקשות יציאה',bg:cr.filter(function(x){return x.status==='pending'}).length},
+    {id:'reqs',ic:'📤',lb:'בקשות יציאה',bg:cr.filter(function(x){return x.status==='pending_cmd';}).length},
+    {id:'daily',ic:'📋',lb:'דרישות יומיות',bg:(function(){var myIds=S.users.filter(function(u){return u.cid===S.me.id;}).map(function(u){return u.id;});return S.daily.filter(function(x){return myIds.indexOf(x.uid)>-1&&x.status==='pending_cmd';}).length;})()},
     {id:'tanks',ic:'🛡',lb:'דיווחי טנק',bg:0},
     {id:'tsalam',ic:'📸',lb:'דוח צלם',bg:0},
     {id:'achieve',ic:'🏆',lb:'השגים',bg:0},
@@ -320,8 +322,29 @@ function getTabs(){
   ];
 }
 function myR(){return S.reqs.filter(function(r){return r.uid===S.me.id});}
-function cmdR(){var ids=S.users.filter(function(u){return u.cid===S.me.id}).map(function(u){return u.id});ids.push(S.me.id);return S.reqs.filter(function(r){return ids.indexOf(r.uid)>-1});}
-function mmR(){var ids=S.users.filter(function(u){return u.mid===S.me.id&&u.role!=='admin'}).map(function(u){return u.id});ids.push(S.me.id);return S.reqs.filter(function(r){return ids.indexOf(r.uid)>-1});}
+function cmdR(){
+  var myIds=S.users.filter(function(u){return u.cid===S.me.id}).map(function(u){return u.id});
+  myIds.push(S.me.id);
+  // Commander sees: their own reqs + soldiers' reqs that are pending_cmd (waiting for their approval)
+  return S.reqs.filter(function(r){
+    if(myIds.indexOf(r.uid)>-1) return true;
+    // pending_cmd: check if soldier's commander is me
+    if(r.status==='pending_cmd'){
+      var soldier=S.users.find(function(u){return u.id===r.uid;});
+      if(soldier&&soldier.cid===S.me.id) return true;
+    }
+    return false;
+  });
+}
+function mmR(){
+  var myIds=S.users.filter(function(u){return u.mid===S.me.id}).map(function(u){return u.id});
+  myIds.push(S.me.id);
+  return S.reqs.filter(function(r){
+    if(myIds.indexOf(r.uid)<0) return false;
+    // MM sees: requests that passed commander (pending/pending_mm/approved/rejected)
+    return r.status==='pending'||r.status==='pending_mm'||r.status==='approved'||r.status==='rejected';
+  });
+}
 function mmT(){var ids=S.users.filter(function(u){return u.mid===S.me.id&&u.role!=='admin'}).map(function(u){return u.id});ids.push(S.me.id);return S.tanks.filter(function(r){return ids.indexOf(r.uid)>-1});}
 
 function render(){
@@ -419,12 +442,14 @@ function rContent(){
     if(r==='soldier')return rReqs(myR(),false);
     if(r==='commander')return rReqs(cmdR(),true);
     if(r==='mm')return rReqs(mmR(),true);
+    // Admin sees pending_mm (arrived at top), mm/mif see all their chain
     return rReqs(S.reqs,true);
   }  if(t==='tanks'){return rTanks(r==='mm'?mmT():(isAdm()||isSysAdmin())?S.tanks:S.tanks.filter(function(x){return x.uid===S.me.id}),(isAdm()||isSysAdmin())||r==='maf'||r==='smaf'||r==='miflag');}
   if(t==='tsalam')return rTsalam();
   if(t==='achieve')return rAchieve();
   if(t==='sched')return rSched();
   if(t==='special'){
+    if(r==='soldier')return rSpecial(S.special.filter(function(x){return x.uid===S.me.id}),false);
     if(r==='mm')return rSpecial(S.special.filter(function(x){return x.uid===S.me.id}),false);
     return rSpecial(S.special,true);
   }
@@ -434,10 +459,42 @@ function rContent(){
 }
 
 function rDaily(){
-  var items=S.daily.filter(function(r){return r.uid===S.me.id});
+  var adm=isAdm()||isSysAdmin();
+  var r=S.me.role;
+  var items;
+  if(adm){
+    // Admin sees everything that reached them (pending_mm) + already handled
+    items=S.daily.filter(function(x){return x.status==='pending_mm'||x.status==='noted'||x.status==='pending_cmd'||!x.status;});
+  } else if(r==='commander'){
+    // Commander sees pending_cmd from their soldiers
+    var myIds=S.users.filter(function(u){return u.cid===S.me.id;}).map(function(u){return u.id;});
+    items=S.daily.filter(function(x){return x.uid===S.me.id||(myIds.indexOf(x.uid)>-1&&(x.status==='pending_cmd'||x.status==='noted'));});
+  } else {
+    items=S.daily.filter(function(x){return x.uid===S.me.id;});
+  }
   return '<div>'+
     hdr('📋 דרישות יומיות','<button class="btn bgreen" onclick="openM(\'daily\')">+ דיווח יומי</button>')+
-    (items.length?items.map(function(r){return '<div class="card"><p style="font-weight:600;margin-bottom:4px">דיווח יומי</p><p style="color:#94a3b8;font-size:13px;margin-bottom:4px">'+e(r.content)+'</p>'+(r.cat?'<span style="background:rgba(255,255,255,0.06);color:#64748b;font-size:11px;padding:2px 8px;border-radius:8px">'+e(r.cat)+'</span>':'')+'</div>';}).join(''):emp('אין דיווחים. לחץ "+ דיווח יומי" להוספה'))+
+    (items.length?items.slice().reverse().map(function(item){
+      var isMine=item.uid===S.me.id;
+      var canForward=(r==='commander'&&item.status==='pending_cmd'&&!isMine);
+      var canNote=(adm&&item.status==='pending_mm');
+      return '<div class="card">'+
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start">'+
+          '<div style="flex:1">'+
+            '<p style="font-weight:600;font-size:13px;margin-bottom:4px">'+(!isMine?e(item.uname)+' — ':'')+'דרישה יומית</p>'+
+            (item.cat?'<span style="background:rgba(255,255,255,0.06);color:#64748b;font-size:11px;padding:2px 8px;border-radius:8px;margin-bottom:6px;display:inline-block">'+e(item.cat)+'</span>':'')+
+            '<p style="color:#94a3b8;font-size:13px">'+e(item.content)+'</p>'+
+          '</div>'+
+          '<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;margin-right:8px">'+
+            (item.status==='pending_cmd'?'<span style="color:#94a3b8;font-size:11px">ממתין למפקד</span>':
+             item.status==='pending_mm'?'<span style="color:#fb923c;font-size:11px">ממתין למנהל</span>':
+             item.status==='noted'?'<span style="color:#22c55e;font-size:11px">✓ נרשם</span>':'')+
+            (canForward?'<button class="bsm" style="background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#60a5fa" onclick="fwdDaily('+item.id+')">📨 העבר למנהל</button>':'')+
+            (canNote?'<button class="bsm" style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#22c55e" onclick="noteDaily('+item.id+')">✓ נרשם</button>':'')+
+          '</div>'+
+        '</div>'+
+      '</div>';
+    }).join(''):emp('אין דיווחים'))+
   '</div>';
 }
 
@@ -461,15 +518,20 @@ function rReqs(items,ca){
         '</div>'+
         '<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0;margin-right:8px">'+
           bdg(q.status)+
+          (q.chain&&q.chain.length?
+            '<p style="font-size:10px;color:#475569;text-align:left">'+q.chain.map(function(c){return c.role+': '+c.action;}).join(' → ')+'</p>':'')+
           (ca&&q.uid!==S.me.id?
             '<div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">'+
-              (q.status==='pending'?
+              (q.status==='pending_cmd'&&S.me.role==='commander'?
+                '<button class="bsm" style="background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#60a5fa" onclick="apR('+q.id+')">📨 העבר</button>'
+              : q.status==='pending'&&S.me.role==='mm'?
+                '<button class="bsm" style="background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#60a5fa" onclick="apR('+q.id+')">📨 העבר למנהל</button>'+
+                '<button class="bsm" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#ef4444" onclick="rejR('+q.id+')">✕ דחה</button>'
+              : q.status==='pending_mm'&&(isAdm()||isSysAdmin())?
                 '<button class="bsm" style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#22c55e" onclick="apR('+q.id+')">✓ אשר</button>'+
                 '<button class="bsm" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#ef4444" onclick="rejR('+q.id+')">✕ דחה</button>'
-              : q.status==='approved'?
-                '<button class="bsm" style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);color:#f59e0b" onclick="unapR('+q.id+')">↩ לא מאושר</button>'
-              : q.status==='rejected'?
-                '<button class="bsm" style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#22c55e" onclick="apR('+q.id+')">✓ אשר</button>'
+              : q.status==='approved'&&(isAdm()||isSysAdmin())?
+                '<button class="bsm" style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);color:#f59e0b" onclick="unapR('+q.id+')">↩ בטל</button>'
               :'')+
             '</div>':'')+
         '</div>'+
@@ -621,7 +683,11 @@ function rTeam(){
                 (u.team?'<p style="color:#7c3aed;font-size:10px;font-weight:600">צוות '+e(u.team)+'</p>':'')+
                 (u.role==='mm'&&u.cids&&u.cids.length?'<p style="color:#334155;font-size:10px">מטקים: '+u.cids.map(function(id){var c=S.users.find(function(x){return x.id===id;});return c?e(c.name):'?';}).join(', ')+'</p>':'')+
                 ((u.role==='commander'||u.role==='maf'||u.role==='smaf')&&u.solids&&u.solids.length?'<p style="color:#334155;font-size:10px">חיילים: '+u.solids.map(function(id){var c=S.users.find(function(x){return x.id===id;});return c?e(c.name):'?';}).join(', ')+'</p>':'')+
-                (u.role==='soldier'&&(u.cid||u.mid)?'<p style="color:#334155;font-size:10px">'+(u.cid?(function(){var c=S.users.find(function(x){return x.id===u.cid;});return c?'מטק: '+e(c.name):'';})():'')+(u.mid?(function(){var m=S.users.find(function(x){return x.id===u.mid;});return m?' | ממ: '+e(m.name):'';})():'')+'</p>':'')+
+                (u.role==='soldier'&&(u.cid||u.mid)?
+                  '<p style="color:#334155;font-size:10px">'+
+                    (u.cid?(function(){var c=S.users.find(function(x){return x.id===u.cid;});return c?'👤 מפקד אישי: <span style="color:#60a5fa">'+e(c.name)+'</span>  ':'';})():'')+
+                    (u.mid?(function(){var m=S.users.find(function(x){return x.id===u.mid;});return m?'| ממ: '+e(m.name):'';})():'')+
+                  '</p>':'')+
                 '</div>'+
               '</div>'+
               '<div style="display:flex;gap:4px">'+
@@ -1109,22 +1175,44 @@ function pushNotif(uid,msg){
 }
 function apR(id){
   var req=S.reqs.find(function(r){return r.id===id;});
-  S.reqs=S.reqs.map(function(r){return r.id===id?Object.assign({},r,{status:'approved'}):r});
-  if(req)pushNotif(req.uid,'✅ בקשת היציאה שלך אושרה'+(req.date?' ל-'+req.date:''));
-  else if(window.fbSaveData)fbSaveData();
+  if(!req) return;
+  var r=S.me.role;
+  var newStatus, msg, chain=(req.chain||[]).concat([{by:S.me.name,role:RL[r]||r,action:'העביר',ts:Date.now()}]);
+  if(req.status==='pending_cmd'&&r==='commander'){
+    // Commander forwards → check if soldier has mm
+    var soldier=S.users.find(function(u){return u.id===req.uid;});
+    newStatus=(soldier&&soldier.mid)?'pending':'pending_mm';
+    msg='📨 מפקד '+S.me.name+' העביר את הבקשה שלך הלאה';
+  } else if(req.status==='pending'&&r==='mm'){
+    // MM forwards to admin
+    newStatus='pending_mm';
+    chain=(req.chain||[]).concat([{by:S.me.name,role:RL[r]||r,action:'העביר',ts:Date.now()}]);
+    msg='📨 ממ '+S.me.name+' העביר את הבקשה שלך למנהל';
+  } else {
+    // Admin final approval
+    newStatus='approved';
+    chain=(req.chain||[]).concat([{by:S.me.name,role:RL[r]||r,action:'אישר סופי',ts:Date.now()}]);
+    msg='✅ בקשת היציאה שלך אושרה!'+(req.date?' ל-'+req.date:'');
+  }
+  S.reqs=S.reqs.map(function(x){return x.id===id?Object.assign({},x,{status:newStatus,chain:chain}):x;});
+  pushNotif(req.uid,msg);
   render();
 }
 function rejR(id){
   var req=S.reqs.find(function(r){return r.id===id;});
-  S.reqs=S.reqs.map(function(r){return r.id===id?Object.assign({},r,{status:'rejected'}):r});
-  if(req)pushNotif(req.uid,'❌ בקשת היציאה שלך לא אושרה'+(req.date?' ל-'+req.date:''));
+  var chain=(req?req.chain||[]:[]).concat([{by:S.me.name,role:RL[S.me.role]||S.me.role,action:'דחה',ts:Date.now()}]);
+  S.reqs=S.reqs.map(function(r){return r.id===id?Object.assign({},r,{status:'rejected',chain:chain}):r});
+  if(req)pushNotif(req.uid,'❌ בקשת היציאה שלך נדחתה'+(req.date?' ל-'+req.date:''));
   else if(window.fbSaveData)fbSaveData();
   render();
 }
 function unapR(id){
   var req=S.reqs.find(function(r){return r.id===id;});
-  S.reqs=S.reqs.map(function(r){return r.id===id?Object.assign({},r,{status:'pending'}):r});
-  if(req)pushNotif(req.uid,'⏳ בקשת היציאה שלך חזרה לסטטוס ממתין'+(req.date?' ל-'+req.date:''));
+  // Return to pending_cmd if soldier has a commander, else pending
+  var soldier=req?S.users.find(function(u){return u.id===req.uid;}):null;
+  var backStatus=(soldier&&soldier.cid)?'pending_cmd':'pending';
+  S.reqs=S.reqs.map(function(r){return r.id===id?Object.assign({},r,{status:backStatus,chain:[]}):r});
+  if(req)pushNotif(req.uid,'⏳ בקשת היציאה שלך חזרה לבדיקה מחדש');
   else if(window.fbSaveData)fbSaveData();
   render();
 }
@@ -1161,8 +1249,25 @@ function markNotifsRead(){
 function editU(id){S.eid=id;S.modal='edituser';render();}
 function delU(id){if(confirm('למחוק משתמש?')){S.users=S.users.filter(function(u){return u.id!==id});if(window.fbSaveConfig)fbSaveConfig();render();}}
 
-function svDaily(){S.daily.push({id:Date.now(),uid:S.me.id,uname:S.me.name,content:gv('fc'),cat:gv('fcat')});if(window.fbSaveData)fbSaveData();closeM();}
-function svReq(){S.reqs.push({id:Date.now(),uid:S.me.id,uname:S.me.name,reason:gv('fr'),date:gv('fd'),dateTo:gv('fdt'),st:gv('fst'),et:gv('fet'),notes:gv('fn'),status:'pending'});if(window.fbSaveData)fbSaveData();closeM();}
+function svDaily(){
+  var hasCmdr=!!(S.me.cid);
+  var item={id:Date.now(),uid:S.me.id,uname:S.me.name,content:gv('fc'),cat:gv('fcat'),ts:Date.now(),
+    status:hasCmdr?'pending_cmd':'pending_mm',chain:[]};
+  S.daily.push(item);
+  if(window.fbSaveData)fbSaveData();
+  closeM();
+}
+function svReq(){
+  var hasCmdr=!!(S.me.cid);
+  var hasMm=!!(S.me.mid);
+  var initStatus=hasCmdr?'pending_cmd':hasMm?'pending':'pending_mm';
+  var r={id:Date.now(),uid:S.me.id,uname:S.me.name,
+    reason:gv('fr'),date:gv('fd'),dateTo:gv('fdt'),st:gv('fst'),et:gv('fet'),notes:gv('fn'),
+    status:initStatus,chain:[]};
+  S.reqs.push(r);
+  if(window.fbSaveData)fbSaveData();
+  closeM();
+}
 function openTank(){S._tankTypeOverride=null;S._tankNumOverride=null;openM('tank');}
 function onTankTypeChange(val){
   S._tankTypeOverride=val;
@@ -1198,7 +1303,19 @@ function svShatzal(mode){
 }
 function editShatzal(id){S._shatzalEditId=id;S.modal='editshatzal';render();}
 function delShatzal(id){if(confirm('למחוק?')){S.shatzalTypes=S.shatzalTypes.filter(function(x){return x.id!==id;});if(window.fbSaveConfig)fbSaveConfig();render();}}
-function svSpecial(){S.special.push({id:Date.now(),uid:S.me.id,uname:S.me.name,subj:gv('fsb'),content:gv('fc'),prio:gv('fpr'),status:'pending'});if(window.fbSaveData)fbSaveData();closeM();}
+function fwdDaily(id){
+  S.daily=S.daily.map(function(x){return x.id===id?Object.assign({},x,{status:'pending_mm',chain:(x.chain||[]).concat([{by:S.me.name,role:RL[S.me.role],action:'העביר',ts:Date.now()}])}):x;});
+  if(window.fbSaveData)fbSaveData();
+  render();
+}
+function noteDaily(id){
+  var item=S.daily.find(function(x){return x.id===id;});
+  S.daily=S.daily.map(function(x){return x.id===id?Object.assign({},x,{status:'noted'}):x;});
+  if(item)pushNotif(item.uid,'✓ הדרישה היומית שלך נרשמה על ידי המנהל');
+  else if(window.fbSaveData)fbSaveData();
+  render();
+}
+function svSpecial(){var subj=gv('fsb'),content=gv('fc'),prio=gv('fpr');if(!subj||!content){alert('יש למלא נושא ותוכן');return;}S.special.push({id:Date.now(),uid:S.me.id,uname:S.me.name,subj:subj,content:content,prio:prio,status:'pending',ts:Date.now()});if(window.fbSaveData)fbSaveData();closeM();}
 function svSched(){
   var uid=parseInt(gv('fuid'));if(!uid)return alert('בחר משתמש');
   S.scheds=S.scheds.filter(function(s){return !(s.uid===uid&&s.date===gv('fd'))});
