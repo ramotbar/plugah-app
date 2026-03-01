@@ -472,41 +472,51 @@ function rContent(){
 
 function rDaily(){
   var adm=isAdm()||isSysAdmin();
-  var r=S.me.role;
+  // Any user who is set as personal commander (cid) of someone
+  var myChiefs=S.users.filter(function(u){return u.cid===S.me.id;}).map(function(u){return u.id;});
+  var isCmdrOf=myChiefs.length>0;
   var items;
+
   if(adm){
-    // Admin sees everything that reached them (pending_mm) + already handled
-    items=S.daily.filter(function(x){return x.status==='pending_mm'||x.status==='noted'||x.status==='pending_cmd'||!x.status;});
-  } else if(r==='commander'){
-    // Commander sees pending_cmd from their soldiers
-    var myIds=S.users.filter(function(u){return u.cid===S.me.id;}).map(function(u){return u.id;});
-    items=S.daily.filter(function(x){return x.uid===S.me.id||(myIds.indexOf(x.uid)>-1&&(x.status==='pending_cmd'||x.status==='noted'));});
+    // Admin sees items that arrived (pending_mm) and handled (noted)
+    items=S.daily.filter(function(x){return x.status==='pending_mm'||x.status==='noted';});
+  } else if(isCmdrOf){
+    // Personal commander sees pending_cmd from their soldiers + own
+    items=S.daily.filter(function(x){
+      return x.uid===S.me.id||(myChiefs.indexOf(x.uid)>-1&&(x.status==='pending_cmd'||x.status==='noted'||x.status==='pending_mm'));
+    });
   } else {
     items=S.daily.filter(function(x){return x.uid===S.me.id;});
   }
+
   return '<div>'+
     hdr('📋 דרישות יומיות','<button class="btn bgreen" onclick="openM(\'daily\')">+ דיווח יומי</button>')+
     (items.length?items.slice().reverse().map(function(item){
       var isMine=item.uid===S.me.id;
-      var canForward=(r==='commander'&&item.status==='pending_cmd'&&!isMine);
-      var canNote=(adm&&item.status==='pending_mm');
+      var canFwd=isCmdrOf&&item.status==='pending_cmd'&&!isMine;
+      var canNote=adm&&item.status==='pending_mm';
       return '<div class="card">'+
         '<div style="display:flex;justify-content:space-between;align-items:flex-start">'+
           '<div style="flex:1">'+
-            '<p style="font-weight:600;font-size:13px;margin-bottom:4px">'+(!isMine?e(item.uname)+' — ':'')+'דרישה יומית</p>'+
-            (item.cat?'<span style="background:rgba(255,255,255,0.06);color:#64748b;font-size:11px;padding:2px 8px;border-radius:8px;margin-bottom:6px;display:inline-block">'+e(item.cat)+'</span>':'')+
+            '<div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;flex-wrap:wrap">'+
+              '<p style="font-weight:600;font-size:13px">'+(!isMine?'<span style="color:#e2e8f0">'+e(item.uname)+'</span> — ':'')+' דרישה יומית</p>'+
+              (item.cat?'<span style="background:rgba(255,255,255,0.06);color:#64748b;font-size:11px;padding:2px 8px;border-radius:8px">'+e(item.cat)+'</span>':'')+
+            '</div>'+
             '<p style="color:#94a3b8;font-size:13px">'+e(item.content)+'</p>'+
+            (item.chain&&item.chain.length?'<p style="font-size:10px;color:#475569;margin-top:4px">'+item.chain.map(function(c){return c.role+': '+c.action;}).join(' → ')+'</p>':'')+
           '</div>'+
-          '<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;margin-right:8px">'+
-            (item.status==='pending_cmd'?'<span style="color:#94a3b8;font-size:11px">ממתין למפקד</span>':
-             item.status==='pending_mm'?'<span style="color:#fb923c;font-size:11px">ממתין למנהל</span>':
+          '<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;flex-shrink:0;margin-right:8px">'+
+            (item.status==='pending_cmd'?'<span style="color:#94a3b8;font-size:11px">⏳ ממתין למפקד</span>':
+             item.status==='pending_mm'?'<span style="color:#fb923c;font-size:11px">⏳ ממתין למנהל</span>':
              item.status==='noted'?'<span style="color:#22c55e;font-size:11px">✓ נרשם</span>':'')+
-            (canForward?'<button class="bsm" style="background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#60a5fa" onclick="fwdDaily('+item.id+')">📨 העבר למנהל</button>':'')+
-            (canNote?'<button class="bsm" style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#22c55e" onclick="noteDaily('+item.id+')">✓ נרשם</button>':'')+
+            (canFwd?
+              '<button class="bsm" style="background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#60a5fa" onclick="fwdDaily('+item.id+')">📨 העבר למנהל</button>':'')+
+            (canNote?
+              '<button class="bsm" style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#22c55e" onclick="noteDaily('+item.id+')">✓ נרשם</button>':'')+
           '</div>'+
         '</div>'+
       '</div>';
-    }).join(''):emp('אין דיווחים'))+
+    }).join(''):emp('אין דרישות יומיות'))+
   '</div>';
 }
 
@@ -1325,14 +1335,18 @@ function svShatzal(mode){
 function editShatzal(id){S._shatzalEditId=id;S.modal='editshatzal';render();}
 function delShatzal(id){if(confirm('למחוק?')){S.shatzalTypes=S.shatzalTypes.filter(function(x){return x.id!==id;});if(window.fbSaveConfig)fbSaveConfig();render();}}
 function fwdDaily(id){
-  S.daily=S.daily.map(function(x){return x.id===id?Object.assign({},x,{status:'pending_mm',chain:(x.chain||[]).concat([{by:S.me.name,role:RL[S.me.role],action:'העביר',ts:Date.now()}])}):x;});
-  if(window.fbSaveData)fbSaveData();
+  var item=S.daily.find(function(x){return x.id===id;});
+  var chain=(item?item.chain||[]:[]).concat([{by:S.me.name,role:RL[S.me.role]||S.me.role,action:'העביר למנהל',ts:Date.now()}]);
+  S.daily=S.daily.map(function(x){return x.id===id?Object.assign({},x,{status:'pending_mm',chain:chain}):x;});
+  if(item)pushNotif(item.uid,'📨 הדרישה היומית שלך הועברה למנהל על ידי '+S.me.name);
+  else if(window.fbSaveData)fbSaveData();
   render();
 }
 function noteDaily(id){
   var item=S.daily.find(function(x){return x.id===id;});
-  S.daily=S.daily.map(function(x){return x.id===id?Object.assign({},x,{status:'noted'}):x;});
-  if(item)pushNotif(item.uid,'✓ הדרישה היומית שלך נרשמה על ידי המנהל');
+  var chain=(item?item.chain||[]:[]).concat([{by:S.me.name,role:RL[S.me.role]||S.me.role,action:'נרשם',ts:Date.now()}]);
+  S.daily=S.daily.map(function(x){return x.id===id?Object.assign({},x,{status:'noted',chain:chain}):x;});
+  if(item)pushNotif(item.uid,'✅ הדרישה היומית שלך נרשמה על ידי המנהל');
   else if(window.fbSaveData)fbSaveData();
   render();
 }
