@@ -286,6 +286,17 @@ function getTabs(){
     {id:'special',ic:'⭐',lb:'בקשות מיוחדות',bg:specPend},
   ];
 
+  // Check if this user is anyone's personal commander
+  var isCmdrOf=S.users.filter(function(u){return u.cid===S.me.id;}).length>0;
+  var pendingForMe=S.reqs.filter(function(x){
+    var sol=S.users.find(function(u){return u.id===x.uid;});
+    return sol&&sol.cid===S.me.id&&x.status==='pending_cmd';
+  }).length;
+  var pendingDailyForMe=S.daily.filter(function(x){
+    var sol=S.users.find(function(u){return u.id===x.uid;});
+    return sol&&sol.cid===S.me.id&&x.status==='pending_cmd';
+  }).length;
+
   if(adm) return adminTabs;
 
   if(r==='soldier') return [
@@ -296,24 +307,26 @@ function getTabs(){
     {id:'sched',ic:'📅',lb:'לוז אישי',bg:0},
   ];
   if(r==='commander') return [
-    {id:'reqs',ic:'📤',lb:'בקשות יציאה',bg:cr.filter(function(x){return x.status==='pending_cmd';}).length},
-    {id:'daily',ic:'📋',lb:'דרישות יומיות',bg:(function(){var myIds=S.users.filter(function(u){return u.cid===S.me.id;}).map(function(u){return u.id;});return S.daily.filter(function(x){return myIds.indexOf(x.uid)>-1&&x.status==='pending_cmd';}).length;})()},
+    {id:'reqs',ic:'📤',lb:'בקשות יציאה',bg:pendingForMe},
+    {id:'daily',ic:'📋',lb:'דרישות יומיות',bg:pendingDailyForMe},
     {id:'tanks',ic:'🛡',lb:'דיווחי טנק',bg:0},
     {id:'tsalam',ic:'📸',lb:'דוח צלם',bg:0},
     {id:'achieve',ic:'🏆',lb:'השגים',bg:0},
     {id:'sched',ic:'📅',lb:'לוז אישי',bg:0},
   ];
   if(r==='mm') return [
-    {id:'reqs',ic:'📤',lb:'בקשות מחלקה',bg:mr.filter(function(x){return x.status==='pending'}).length},
+    {id:'reqs',ic:'📤',lb:'בקשות יציאה',bg:mr.filter(function(x){return x.status==='pending';}).length+(isCmdrOf?pendingForMe:0)},
+    {id:'daily',ic:'📋',lb:'דרישות יומיות',bg:pendingDailyForMe},
     {id:'tanks',ic:'🛡',lb:'דיווחי טנק',bg:0},
     {id:'tsalam',ic:'📸',lb:'דוח צלם',bg:0},
     {id:'achieve',ic:'🏆',lb:'השגים',bg:0},
     {id:'special',ic:'⭐',lb:'בקשות מיוחדות',bg:0},
     {id:'sched',ic:'📅',lb:'לוז אישי',bg:0},
   ];
-  // miflag/maf/smaf without admin — regular senior tabs
+  // miflag/maf/smaf without admin — regular senior tabs + commander tabs if needed
   return [
-    {id:'reqs',ic:'📤',lb:'כל הבקשות',bg:allPend},
+    {id:'reqs',ic:'📤',lb:'כל הבקשות',bg:allPend+(isCmdrOf?pendingForMe:0)},
+    {id:'daily',ic:'📋',lb:'דרישות יומיות',bg:pendingDailyForMe},
     {id:'tanks',ic:'🛡',lb:'דיווחי טנק',bg:0},
     {id:'tsalam',ic:'📸',lb:'דוח צלם',bg:0},
     {id:'achieve',ic:'🏆',lb:'השגים',bg:0},
@@ -323,12 +336,11 @@ function getTabs(){
 }
 function myR(){return S.reqs.filter(function(r){return r.uid===S.me.id});}
 function cmdR(){
-  var myIds=S.users.filter(function(u){return u.cid===S.me.id}).map(function(u){return u.id});
+  // Any user can be a personal commander (cid points to them)
+  var myIds=S.users.filter(function(u){return u.cid===S.me.id;}).map(function(u){return u.id;});
   myIds.push(S.me.id);
-  // Commander sees: their own reqs + soldiers' reqs that are pending_cmd (waiting for their approval)
   return S.reqs.filter(function(r){
     if(myIds.indexOf(r.uid)>-1) return true;
-    // pending_cmd: check if soldier's commander is me
     if(r.status==='pending_cmd'){
       var soldier=S.users.find(function(u){return u.id===r.uid;});
       if(soldier&&soldier.cid===S.me.id) return true;
@@ -685,7 +697,7 @@ function rTeam(){
                 ((u.role==='commander'||u.role==='maf'||u.role==='smaf')&&u.solids&&u.solids.length?'<p style="color:#334155;font-size:10px">חיילים: '+u.solids.map(function(id){var c=S.users.find(function(x){return x.id===id;});return c?e(c.name):'?';}).join(', ')+'</p>':'')+
                 (u.role==='soldier'&&(u.cid||u.mid)?
                   '<p style="color:#334155;font-size:10px">'+
-                    (u.cid?(function(){var c=S.users.find(function(x){return x.id===u.cid;});return c?'👤 מפקד אישי: <span style="color:#60a5fa">'+e(c.name)+'</span>  ':'';})():'')+
+                    (u.cid?(function(){var c=S.users.find(function(x){return x.id===u.cid;});return c?'👤 מפקד אישי: <span style="color:#60a5fa">'+e(c.name)+'</span> <span style="color:#475569">('+RL[c.role]+')</span>  ':'';})():'')+
                     (u.mid?(function(){var m=S.users.find(function(x){return x.id===u.mid;});return m?'| ממ: '+e(m.name):'';})():'')+
                   '</p>':'')+
                 '</div>'+
@@ -800,11 +812,20 @@ function rModal(){
         '<div class="fld"><label>מטק (עד 2)</label>'+multiSel('fci',cm,ef.cids,2)+'</div>'
       : roleVal==='commander'||roleVal==='maf'||roleVal==='smaf' ?
         '<div class="fld"><label>חיילים (עד 4)</label>'+multiSel('fsol',soldiers,ef.solids,4)+'</div>'
-      : roleVal==='soldier' ?
-        fld('מפקד אישי',selOpt('fci',cm,ef.cid)) +
-        fld('ממ',selOpt('fmi',mm,ef.mid)) +
-        fld('מפ',selOpt('fmaf',S.users.filter(function(u){return u.role==='maf';}),ef.mafid)) +
-        fld('סמפ',selOpt('fsmaf',S.users.filter(function(u){return u.role==='smaf';}),ef.smafid))
+      : roleVal==='soldier' ? (function(){
+        var allCmdrs=S.users.filter(function(u){return u.role==='commander'||u.role==='mm'||u.role==='maf'||u.role==='smaf'||u.role==='miflag';});
+        return fld('מפקד אישי',
+          '<select class="inp" id="fci"><option value="">ללא</option>'+
+            ['commander','mm','maf','smaf','miflag'].map(function(role){
+              var group=allCmdrs.filter(function(u){return u.role===role;});
+              if(!group.length) return '';
+              return '<optgroup label="'+RL[role]+'">'+
+                group.map(function(u){return '<option value="'+u.id+'"'+(ef.cid===u.id?' selected':'')+'>'+e(u.name)+'</option>';}).join('')+
+              '</optgroup>';
+            }).join('')+
+          '</select>') +
+        fld('ממ',selOpt('fmi',mm,ef.mid));
+      })()
       : '') +
       '<button class="btn borange" style="width:100%;margin-top:14px" onclick="svUser(\''+m+'\')">'+(m==='edituser'?'שמור שינויים':'הוסף משתמש')+'</button>';
   }else if(m==='tsalam'){
