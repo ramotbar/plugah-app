@@ -241,7 +241,7 @@ var S={
     {id:7,cat:'צלם אישי',name:'יעט'},
     {id:8,cat:'תקשוב',name:'תקשוב 1'},
     {id:9,cat:'תקשוב',name:'תקשוב 2'},
-    {id:10,cat:'רימונים',name:'רימוני רסס',type:'count',maxCount:6},
+    {id:10,cat:'רימונים',name:'רימוני רסס',type:'count',maxCount:12},
   ],
   lu:'',lp:'',lerr:'',ltab:'pass',
   fp:0,fsc:false,fdn:false,
@@ -759,7 +759,7 @@ function rModal(){
           S.shatzalTypes.map(function(st){
             return '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
               '<label style="color:#94a3b8;font-size:13px">'+e(st.name)+'</label>'+
-              '<input type="number" min="0" id="sh_'+st.id+'" placeholder="0" '+
+              '<input type="number" min="0" max="'+(st.cat==='רימונים'?12:9999)+'" id="sh_'+st.id+'" placeholder="0" '+
                 'style="width:80px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.07);color:white;font-size:14px;font-weight:600;text-align:center"/>'+
             '</div>';
           }).join('')+
@@ -842,9 +842,16 @@ function rModal(){
     var now2=new Date();
     var dd=now2.getFullYear()+'-'+(String(now2.getMonth()+1).padStart(2,'0'))+'-'+(String(now2.getDate()).padStart(2,'0'));
     var cnt=Object.keys(S._pendingTsamVals||{}).length;
+    var existingTank=S.tsamReports.find(function(r){return r.uid===S.me.id&&r.date===dd;});
     body='<div style="background:rgba(8,130,192,0.08);border:1px solid rgba(8,130,192,0.2);border-radius:10px;padding:12px;margin-bottom:14px">'+
         '<p style="color:#38bdf8;font-size:13px">'+cnt+' פריטים ימולאו בדוח.</p>'+
         '<p style="color:#64748b;font-size:12px;margin-top:4px">אם כבר קיים דוח להיום — הוא יתעדכן.</p>'+
+      '</div>'+
+      '<div class="fld"><label>צ&quot;ט טנק</label>'+
+        '<div style="display:flex;align-items:center;gap:6px">'+
+          '<span style="color:#64748b;font-size:14px;font-weight:600;white-space:nowrap">צ&quot;ט</span>'+
+          '<input class="inp" id="ftanknum" maxlength="3" placeholder="000" value="'+(existingTank&&existingTank.tankNum||'')+'" style="width:80px;text-align:center;font-size:16px;font-weight:700;letter-spacing:2px;font-family:monospace"/>'+
+        '</div>'+
       '</div>'+
       fld('תאריך','<input class="inp" type="date" id="ftd" value="'+dd+'"/>') +
       '<button class="btn" style="width:100%;margin-top:4px;background:linear-gradient(135deg,#0891b2,#0e7490)" onclick="svTsalam()">📤 שלח דוח</button>';
@@ -1054,7 +1061,10 @@ function rTsalam(){
               '<div style="display:flex;align-items:center;gap:10px">'+
                 '<div style="width:34px;height:34px;border-radius:50%;background:'+rc2+'22;border:2px solid '+rc2+';display:flex;align-items:center;justify-content:center;font-weight:700;color:'+rc2+';font-size:14px">'+(u?u.name[0]:'?')+'</div>'+
                 '<div>'+
-                  '<p style="font-weight:600;font-size:14px">'+(u?e(u.name):'לא ידוע')+'</p>'+
+                  '<p style="font-weight:600;font-size:14px">'+
+                    (r.tankNum?'<span style="color:#38bdf8;font-family:monospace;font-size:15px;letter-spacing:1px">צ&quot;ט '+e(r.tankNum)+'</span> — ':'')+
+                    (u?e(u.name):'לא ידוע')+
+                  '</p>'+
                   '<p style="color:#64748b;font-size:12px">'+(u?RL[u.role]+' | ':'')+e(r.date||'')+'</p>'+
                 '</div>'+
               '</div>'+
@@ -1145,7 +1155,10 @@ function rTsalam(){
             '<div style="display:flex;justify-content:space-between;align-items:center">'+
               '<div style="display:flex;align-items:center;gap:8px">'+
                 '<span style="font-size:18px">'+(isToday?'📅':'📄')+'</span>'+
-                '<span style="font-weight:600;font-size:14px">'+e(r.date)+(isToday?' <span style="background:rgba(34,197,94,0.15);color:#22c55e;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600">היום</span>':'')+'</span>'+
+                '<span style="font-weight:600;font-size:14px">'+
+                  (r.tankNum?'<span style="color:#38bdf8;font-family:monospace">צ"ט '+e(r.tankNum)+'</span> · ':'')+
+                  e(r.date)+(isToday?' <span style="background:rgba(34,197,94,0.15);color:#22c55e;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600">היום</span>':'')+
+                '</span>'+
               '</div>'+
               '<span style="color:#64748b;font-size:18px;display:inline-block;transform:'+(isOpen?'rotate(180deg)':'rotate(0deg)')+'">›</span>'+
             '</div>'+
@@ -1493,8 +1506,9 @@ function collectAndOpenTsalam(){
 }
 function svTsalam(){
   var date=gv('ftd')||new Date().toISOString().slice(0,10);
+  var tankNum=gv('ftanknum').trim();
   var existing=S.tsamReports.findIndex(function(r){return r.uid===S.me.id&&r.date===date;});
-  var report={id:existing>=0?S.tsamReports[existing].id:Date.now(),uid:S.me.id,uname:S.me.name,date:date,vals:S._pendingTsamVals||{}};
+  var report={id:existing>=0?S.tsamReports[existing].id:Date.now(),uid:S.me.id,uname:S.me.name,date:date,tankNum:tankNum,vals:S._pendingTsamVals||{}};
   if(existing>=0){S.tsamReports[existing]=report;}
   else{S.tsamReports.push(report);}
   S._pendingTsamVals=null;
