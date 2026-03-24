@@ -88,7 +88,15 @@ async function fbLoad(){
           S.users.push({id:11,un:'miflag1',pw:'1234',role:'miflag',name:'מפלג דוגמא',isAdmin:true,cid:null,mid:null,team:null});
         }
       }
-      if(d.tsamItems) S.tsamItems = d.tsamItems;
+      if(d.tsamItems){
+        S.tsamItems = d.tsamItems.map(function(it){
+          if(it.cat==='רימונים'&&it.type==='count') return Object.assign({},it,{maxCount:12});
+          return it;
+        });
+        // If any item was fixed, save back to Firebase
+        var needsSave=d.tsamItems.some(function(it){return it.cat==='רימונים'&&it.type==='count'&&it.maxCount!==12;});
+        if(needsSave) setTimeout(function(){if(window.fbSaveConfig)fbSaveConfig();},500);
+      }
       if(d.achieveTopics) S.achieveTopics = d.achieveTopics;
       if(d.shatzalTypes) S.shatzalTypes = d.shatzalTypes;
     } else {
@@ -168,7 +176,10 @@ function fbListen(){
         if(fresh) S.me = fresh;
       }
     }
-    if(d.tsamItems) S.tsamItems = d.tsamItems;
+    if(d.tsamItems) S.tsamItems = d.tsamItems.map(function(it){
+      if(it.cat==='רימונים'&&it.type==='count') return Object.assign({},it,{maxCount:12});
+      return it;
+    });
     if(d.achieveTopics) S.achieveTopics = d.achieveTopics;
     if(d.shatzalTypes) S.shatzalTypes = d.shatzalTypes;
     if(S.page==='app') render();
